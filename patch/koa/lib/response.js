@@ -1,32 +1,32 @@
-'use strict';
+'use strict'
 
 /**
  * Module dependencies.
  */
 
-const assert = require('node:assert');
-const extname = require('node:path').extname;
-const util = require('node:util');
+const assert = require('node:assert')
+const extname = require('node:path').extname
+const util = require('node:util')
 
-const contentDisposition = require('content-disposition');
-const onFinish = require('on-finished');
-const escape = require('escape-html');
-const typeis = require('type-is').is;
-const statuses = require('statuses');
-const destroy = require('destroy');
-const encodeUrl = require('encodeurl');
-const vary = require('vary');
-const getType = require('mime-types').contentType;
+const contentDisposition = require('content-disposition')
+const onFinish = require('on-finished')
+const escape = require('escape-html')
+const typeis = require('type-is').is
+const statuses = require('statuses')
+const destroy = require('destroy')
+const encodeUrl = require('encodeurl')
+const vary = require('vary')
+const getType = require('mime-types').contentType
 
-const isStream = require('./is-stream.js');
-const only = require('./only.js');
-console.log('updated response');
+const isStream = require('./is-stream.js')
+const only = require('./only.js')
 
 /**
  * Prototype.
  */
 
 module.exports = {
+
   /**
    * Return the request socket.
    *
@@ -34,8 +34,8 @@ module.exports = {
    * @api public
    */
 
-  get socket() {
-    return this.res.socket;
+  get socket () {
+    return this.res.socket
   },
 
   /**
@@ -45,11 +45,11 @@ module.exports = {
    * @api public
    */
 
-  get header() {
-    const { res } = this;
+  get header () {
+    const { res } = this
     return typeof res.getHeaders === 'function'
       ? res.getHeaders()
-      : res._headers || {}; // Node < 7.7
+      : res._headers || {} // Node < 7.7
   },
 
   /**
@@ -59,8 +59,8 @@ module.exports = {
    * @api public
    */
 
-  get headers() {
-    return this.header;
+  get headers () {
+    return this.header
   },
 
   /**
@@ -70,8 +70,8 @@ module.exports = {
    * @api public
    */
 
-  get status() {
-    return this.res.statusCode;
+  get status () {
+    return this.res.statusCode
   },
 
   /**
@@ -81,16 +81,15 @@ module.exports = {
    * @api public
    */
 
-  set status(code) {
-    if (this.headerSent) return;
+  set status (code) {
+    if (this.headerSent) return
 
-    assert(Number.isInteger(code), 'status code must be a number');
-    assert(code >= 100 && code <= 999, `invalid status code: ${code}`);
-    this._explicitStatus = true;
-    this.res.statusCode = code;
-    if (this.req.httpVersionMajor < 2)
-      this.res.statusMessage = statuses.message[code];
-    if (this.body && statuses.empty[code]) this.body = null;
+    assert(Number.isInteger(code), 'status code must be a number')
+    assert(code >= 100 && code <= 999, `invalid status code: ${code}`)
+    this._explicitStatus = true
+    this.res.statusCode = code
+    if (this.req.httpVersionMajor < 2) this.res.statusMessage = statuses.message[code]
+    if (this.body && statuses.empty[code]) this.body = null
   },
 
   /**
@@ -100,8 +99,8 @@ module.exports = {
    * @api public
    */
 
-  get message() {
-    return this.res.statusMessage || statuses.message[this.status];
+  get message () {
+    return this.res.statusMessage || statuses.message[this.status]
   },
 
   /**
@@ -111,8 +110,8 @@ module.exports = {
    * @api public
    */
 
-  set message(msg) {
-    this.res.statusMessage = msg;
+  set message (msg) {
+    this.res.statusMessage = msg
   },
 
   /**
@@ -122,8 +121,8 @@ module.exports = {
    * @api public
    */
 
-  get body() {
-    return this._body;
+  get body () {
+    return this._body
   },
 
   /**
@@ -133,92 +132,98 @@ module.exports = {
    * @api public
    */
 
-  set body(val) {
-    const original = this._body;
-    this._body = val;
+  set body (val) {
+    const original = this._body
+    this._body = val
     // no content
 
     if (val == null) {
       if (!statuses.empty[this.status]) {
         if (this.type === 'application/json') {
-          this._body = 'null';
-          return;
+          this._body = 'null'
+          return
         }
-        this.status = 204;
+        this.status = 204
       }
-      if (val === null) this._explicitNullBody = true;
-      this.remove('Content-Type');
-      this.remove('Content-Length');
-      this.remove('Transfer-Encoding');
+      if (val === null) this._explicitNullBody = true
+      this.remove('Content-Type')
+      this.remove('Content-Length')
+      this.remove('Transfer-Encoding')
 
-      const shouldDestroyOriginal = original && isStream(original);
+      const shouldDestroyOriginal = original && isStream(original)
       if (shouldDestroyOriginal) {
-        original.once('error', () => {});
-        destroy(original);
+        // Ignore errors during cleanup to prevent unhandled exceptions when destroying the stream
+        original.once('error', () => {})
+        destroy(original)
       }
-      return;
+      return
     }
 
     // set the status
-    if (!this._explicitStatus) this.status = 200;
+    if (!this._explicitStatus) this.status = 200
 
     // set the content-type only if not yet set
-    const setType = !this.has('Content-Type');
+    const setType = !this.has('Content-Type')
 
     // string
     if (typeof val === 'string') {
-      if (setType) this.type = /^\s*</.test(val) ? 'html' : 'text';
-      this.length = Buffer.byteLength(val);
-      return;
+      if (setType) this.type = /^\s*</.test(val) ? 'html' : 'text'
+      this.length = Buffer.byteLength(val)
+      return
     }
 
     // buffer
     if (Buffer.isBuffer(val)) {
-      if (setType) this.type = 'bin';
-      this.length = val.length;
-      return;
+      if (setType) this.type = 'bin'
+      this.length = val.length
+      return
     }
 
     // stream
     if (isStream(val)) {
-      onFinish(this.res, destroy.bind(null, val));
+      onFinish(this.res, destroy.bind(null, val))
       if (original !== val) {
-        // overwriting
-        if (original != null) this.remove('Content-Length');
+        if (original != null) this.remove('Content-Length')
+
+        const shouldDestroyOriginal = original && isStream(original)
+        if (shouldDestroyOriginal) {
+          original.once('error', () => {})
+          destroy(original)
+        }
       }
 
-      if (setType) this.type = 'bin';
-      return;
+      if (setType) this.type = 'bin'
+      return
     }
 
     // ReadableStream
     if (val instanceof ReadableStream) {
-      if (setType) this.type = 'bin';
-      return;
+      if (setType) this.type = 'bin'
+      return
     }
 
     // blob
     if (val instanceof Blob) {
-      if (setType) this.type = 'bin';
-      this.length = val.size;
-      return;
+      if (setType) this.type = 'bin'
+      this.length = val.size
+      return
     }
 
     // Response
     if (val instanceof Response) {
-      this.status = val.status;
-      if (setType) this.type = 'bin';
-      const headers = val.headers;
+      this.status = val.status
+      if (setType) this.type = 'bin'
+      const headers = val.headers
       for (const key of headers.keys()) {
-        this.set(key, headers.get(key));
+        this.set(key, headers.get(key))
       }
 
-      return;
+      return
     }
 
     // json
-    this.remove('Content-Length');
-    if (!this.type || !/\bjson\b/i.test(this.type)) this.type = 'json';
+    this.remove('Content-Length')
+    if (!this.type || !/\bjson\b/i.test(this.type)) this.type = 'json'
   },
 
   /**
@@ -228,9 +233,9 @@ module.exports = {
    * @api public
    */
 
-  set length(n) {
+  set length (n) {
     if (!this.has('Transfer-Encoding')) {
-      this.set('Content-Length', n);
+      this.set('Content-Length', n)
     }
   },
 
@@ -241,16 +246,16 @@ module.exports = {
    * @api public
    */
 
-  get length() {
+  get length () {
     if (this.has('Content-Length')) {
-      return parseInt(this.get('Content-Length'), 10) || 0;
+      return parseInt(this.get('Content-Length'), 10) || 0
     }
 
-    const { body } = this;
-    if (!body || isStream(body)) return undefined;
-    if (typeof body === 'string') return Buffer.byteLength(body);
-    if (Buffer.isBuffer(body)) return body.length;
-    return Buffer.byteLength(JSON.stringify(body));
+    const { body } = this
+    if (!body || isStream(body)) return undefined
+    if (typeof body === 'string') return Buffer.byteLength(body)
+    if (Buffer.isBuffer(body)) return body.length
+    return Buffer.byteLength(JSON.stringify(body))
   },
 
   /**
@@ -260,8 +265,8 @@ module.exports = {
    * @api public
    */
 
-  get headerSent() {
-    return this.res.headersSent;
+  get headerSent () {
+    return this.res.headersSent
   },
 
   /**
@@ -271,10 +276,10 @@ module.exports = {
    * @api public
    */
 
-  vary(field) {
-    if (this.headerSent) return;
+  vary (field) {
+    if (this.headerSent) return
 
-    vary(this.res, field);
+    vary(this.res, field)
   },
 
   /**
@@ -289,27 +294,27 @@ module.exports = {
    * @api public
    */
 
-  redirect(url) {
+  redirect (url) {
     if (/^https?:\/\//i.test(url)) {
       // formatting url again avoid security escapes
-      url = new URL(url).toString();
+      url = new URL(url).toString()
     }
-    this.set('Location', encodeUrl(url));
+    this.set('Location', encodeUrl(url))
 
     // status
-    if (!statuses.redirect[this.status]) this.status = 302;
+    if (!statuses.redirect[this.status]) this.status = 302
 
     // html
     if (this.ctx.accepts('html')) {
-      url = escape(url);
-      this.type = 'text/html; charset=utf-8';
-      this.body = `Redirecting to ${url}.`;
-      return;
+      url = escape(url)
+      this.type = 'text/html; charset=utf-8'
+      this.body = `Redirecting to ${url}.`
+      return
     }
 
     // text
-    this.type = 'text/plain; charset=utf-8';
-    this.body = `Redirecting to ${url}.`;
+    this.type = 'text/plain; charset=utf-8'
+    this.body = `Redirecting to ${url}.`
   },
 
   /**
@@ -325,19 +330,19 @@ module.exports = {
    * @api public
    */
 
-  back(alt) {
-    const referrer = this.ctx.get('Referrer');
+  back (alt) {
+    const referrer = this.ctx.get('Referrer')
     if (referrer) {
       // referrer is an absolute URL, check if it's the same origin
-      const url = new URL(referrer, this.ctx.href);
+      const url = new URL(referrer, this.ctx.href)
       if (url.host === this.ctx.host) {
-        this.redirect(referrer);
-        return;
+        this.redirect(referrer)
+        return
       }
     }
 
     // no referrer, use alt or '/'
-    this.redirect(alt || '/');
+    this.redirect(alt || '/')
   },
 
   /**
@@ -350,11 +355,11 @@ module.exports = {
    * @api public
    */
 
-  attachment(filename, options) {
+  attachment (filename, options) {
     if (filename && !this.has('Content-Type')) {
-      this.type = extname(filename);
+      this.type = extname(filename)
     }
-    this.set('Content-Disposition', contentDisposition(filename, options));
+    this.set('Content-Disposition', contentDisposition(filename, options))
   },
 
   /**
@@ -373,12 +378,12 @@ module.exports = {
    * @api public
    */
 
-  set type(type) {
-    type = getType(type);
+  set type (type) {
+    type = getType(type)
     if (type) {
-      this.set('Content-Type', type);
+      this.set('Content-Type', type)
     } else {
-      this.remove('Content-Type');
+      this.remove('Content-Type')
     }
   },
 
@@ -392,9 +397,9 @@ module.exports = {
    * @api public
    */
 
-  set lastModified(val) {
-    if (typeof val === 'string') val = new Date(val);
-    this.set('Last-Modified', val.toUTCString());
+  set lastModified (val) {
+    if (typeof val === 'string') val = new Date(val)
+    this.set('Last-Modified', val.toUTCString())
   },
 
   /**
@@ -404,9 +409,9 @@ module.exports = {
    * @api public
    */
 
-  get lastModified() {
-    const date = this.get('last-modified');
-    if (date) return new Date(date);
+  get lastModified () {
+    const date = this.get('last-modified')
+    if (date) return new Date(date)
   },
 
   /**
@@ -421,9 +426,9 @@ module.exports = {
    * @api public
    */
 
-  set etag(val) {
-    if (!/^(W\/)?"/.test(val)) val = `"${val}"`;
-    this.set('ETag', val);
+  set etag (val) {
+    if (!/^(W\/)?"/.test(val)) val = `"${val}"`
+    this.set('ETag', val)
   },
 
   /**
@@ -433,8 +438,8 @@ module.exports = {
    * @api public
    */
 
-  get etag() {
-    return this.get('ETag');
+  get etag () {
+    return this.get('ETag')
   },
 
   /**
@@ -445,10 +450,10 @@ module.exports = {
    * @api public
    */
 
-  get type() {
-    const type = this.get('Content-Type');
-    if (!type) return '';
-    return type.split(';', 1)[0];
+  get type () {
+    const type = this.get('Content-Type')
+    if (!type) return ''
+    return type.split(';', 1)[0]
   },
 
   /**
@@ -461,8 +466,8 @@ module.exports = {
    * @api public
    */
 
-  is(type, ...types) {
-    return typeis(this.type, type, ...types);
+  is (type, ...types) {
+    return typeis(this.type, type, ...types)
   },
 
   /**
@@ -481,8 +486,8 @@ module.exports = {
    * @api public
    */
 
-  get(field) {
-    return this.res.getHeader(field);
+  get (field) {
+    return this.res.getHeader(field)
   },
 
   /**
@@ -502,11 +507,11 @@ module.exports = {
    * @api public
    */
 
-  has(field) {
+  has (field) {
     return typeof this.res.hasHeader === 'function'
       ? this.res.hasHeader(field)
-      : // Node < 7.7
-        field.toLowerCase() in this.headers;
+      // Node < 7.7
+      : field.toLowerCase() in this.headers
   },
 
   /**
@@ -524,15 +529,13 @@ module.exports = {
    * @api public
    */
 
-  set(field, val) {
-    if (this.headerSent || !field) return;
+  set (field, val) {
+    if (this.headerSent || !field) return
 
     if (typeof field === 'string') {
-      this.res.setHeader(field, val);
+      this.res.setHeader(field, val)
     } else {
-      Object.keys(field).forEach((header) =>
-        this.res.setHeader(header, field[header])
-      );
+      Object.keys(field).forEach(header => this.res.setHeader(header, field[header]))
     }
   },
 
@@ -552,14 +555,16 @@ module.exports = {
    * @api public
    */
 
-  append(field, val) {
-    const prev = this.get(field);
+  append (field, val) {
+    const prev = this.get(field)
 
     if (prev) {
-      val = Array.isArray(prev) ? prev.concat(val) : [prev].concat(val);
+      val = Array.isArray(prev)
+        ? prev.concat(val)
+        : [prev].concat(val)
     }
 
-    return this.set(field, val);
+    return this.set(field, val)
   },
 
   /**
@@ -569,10 +574,10 @@ module.exports = {
    * @api public
    */
 
-  remove(field) {
-    if (this.headerSent) return;
+  remove (field) {
+    if (this.headerSent) return
 
-    this.res.removeHeader(field);
+    this.res.removeHeader(field)
   },
 
   /**
@@ -584,19 +589,19 @@ module.exports = {
    * @api private
    */
 
-  get writable() {
+  get writable () {
     // can't write any more after response finished
     // response.writableEnded is available since Node > 12.9
     // https://nodejs.org/api/http.html#http_response_writableended
     // response.finished is undocumented feature of previous Node versions
     // https://stackoverflow.com/questions/16254385/undocumented-response-finished-in-node-js
-    if (this.res.writableEnded || this.res.finished) return false;
+    if (this.res.writableEnded || this.res.finished) return false
 
-    const socket = this.res.socket;
+    const socket = this.res.socket
     // There are already pending outgoing res, but still writable
     // https://github.com/nodejs/node/blob/v4.4.7/lib/_http_server.js#L486
-    if (!socket) return true;
-    return socket.writable;
+    if (!socket) return true
+    return socket.writable
   },
 
   /**
@@ -606,11 +611,11 @@ module.exports = {
    * @api public
    */
 
-  inspect() {
-    if (!this.res) return;
-    const o = this.toJSON();
-    o.body = this.body;
-    return o;
+  inspect () {
+    if (!this.res) return
+    const o = this.toJSON()
+    o.body = this.body
+    return o
   },
 
   /**
@@ -620,18 +625,22 @@ module.exports = {
    * @api public
    */
 
-  toJSON() {
-    return only(this, ['status', 'message', 'header']);
+  toJSON () {
+    return only(this, [
+      'status',
+      'message',
+      'header'
+    ])
   },
 
   /**
    * Flush any set headers and begin the body
    */
 
-  flushHeaders() {
-    this.res.flushHeaders();
-  },
-};
+  flushHeaders () {
+    this.res.flushHeaders()
+  }
+}
 
 /**
  * Custom inspection implementation for node 6+.
@@ -642,5 +651,5 @@ module.exports = {
 
 /* istanbul ignore else */
 if (util.inspect.custom) {
-  module.exports[util.inspect.custom] = module.exports.inspect;
+  module.exports[util.inspect.custom] = module.exports.inspect
 }

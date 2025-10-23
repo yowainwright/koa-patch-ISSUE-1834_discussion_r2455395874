@@ -5,10 +5,11 @@
     "@koa/router": "latest",
     "koa": "latest",
     "koa-logger": "latest",
-    "koa-pino-logger": "latest"
+    "koa-pino-logger": "latest",
+    "koa-patch": "file:./vendor/koa"
   },
   "scripts": {
     "start": "node index.js",
-    "postinstall": "sh set-vendor.sh"
+    "postinstall": "node set-vendor.js"
   }
 }

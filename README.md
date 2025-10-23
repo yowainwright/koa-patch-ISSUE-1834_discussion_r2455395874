@@ -1,27 +1,77 @@
-# Koa TCP Memory Leak Fix Demo - Issue #1834
+# Koa Stream Replacement Memory Leak Fix - Issue #1834
 
-This demo shows the TCP memory leak issue that occurs when streaming from fetch responses and how the fix resolves it.
+This demo shows the critical bug identified in [PR #1893 discussion](https://github.com/koajs/koa/pull/1893#discussion_r2455395874) where sequentially replacing streams causes unhandled errors and memory leaks.
 
 ## The Problem
 
-When using `node-fetch` (or similar) to stream responses through Koa, memory leaks can occur if clients disconnect before the stream completes. This happens because:
+When developers assign multiple failing streams in succession to `ctx.body`, the current implementation has a critical flaw:
 
-1. Koa pipes the fetch response stream to the HTTP response
-2. When the client disconnects, Koa destroys its side of the stream
-3. But the underlying fetch request continues, keeping sockets and memory allocated
-4. Over time, this leads to memory leaks and potential server instability
+```javascript
+ctx.body = fs.createReadStream('does-not-exist-1.txt')
+ctx.body = fs.createReadStream('does-not-exist-2.txt')
+```
+
+**What happens:**
+1. First stream is assigned to `ctx.body`
+2. Second stream replaces the first
+3. The first stream is **not properly cleaned up**
+4. When the first stream errors (asynchronously), it throws an **unhandled error**
+5. This can **crash the server** or leak memory
 
 ## The Solution
 
-The fix adds automatic abort handling for `ReadableStream` and `Response` objects:
+The fix properly cleans up replaced streams in `lib/response.js`:
 
-- When clients disconnect, the system properly cancels the underlying streams
-- This ensures fetch requests are aborted and resources are cleaned up
-- Memory leaks are prevented
+```javascript
+// When a new stream replaces an existing stream
+if (original !== val) {
+  if (original != null) this.remove('Content-Length')
+
+  const shouldDestroyOriginal = original && isStream(original)
+  if (shouldDestroyOriginal) {
+    original.once('error', () => {}) // Prevent unhandled errors
+    destroy(original)
+  }
+}
+```
+
+**Key improvements:**
+- Detects when one stream replaces another
+- Adds noop error handler before destroying to prevent unhandled exceptions
+- Properly destroys the old stream to free resources
+- Works with Stream.pipeline() for complete error handling
 
 ## Running the Demo
 
-1. **Start the problematic server:**
+1. **Start the demo server:**
    ```bash
-   node issue-demo.js
+   npm install
+   npm start
    ```
+
+2. **Open your browser:**
+   Navigate to `http://localhost:3000`
+
+3. **Test both behaviors:**
+   - Click "Test Buggy Behavior" to see unhandled errors
+   - Click "Test Fixed Behavior" to see proper cleanup
+
+## What You'll See
+
+### Buggy Behavior (Before Fix)
+- ❌ Stream replaced but not cleaned up
+- ❌ Unhandled error exception thrown
+- ❌ Server could crash in production
+
+### Fixed Behavior (After Fix)
+- ✅ Old stream properly destroyed
+- ✅ No unhandled errors
+- ✅ Safe stream replacement
+- ✅ No memory leaks
+
+## Related Issues
+
+- #1834 - Original memory leak report
+- #1882 - Related streaming issues
+- #1889 - Additional stream handling bugs
+- PR #1893 - Fix implementation and discussion

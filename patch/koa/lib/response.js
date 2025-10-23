@@ -135,6 +135,14 @@ module.exports = {
   set body (val) {
     const original = this._body
     this._body = val
+
+    const cleanupPreviousStream = () => {
+      if (original && isStream(original)) {
+        original.once('error', () => {})
+        destroy(original)
+      }
+    }
+
     // no content
 
     if (val == null) {
@@ -149,13 +157,7 @@ module.exports = {
       this.remove('Content-Type')
       this.remove('Content-Length')
       this.remove('Transfer-Encoding')
-
-      const shouldDestroyOriginal = original && isStream(original)
-      if (shouldDestroyOriginal) {
-        // Ignore errors during cleanup to prevent unhandled exceptions when destroying the stream
-        original.once('error', () => {})
-        destroy(original)
-      }
+      cleanupPreviousStream()
       return
     }
 
@@ -169,6 +171,7 @@ module.exports = {
     if (typeof val === 'string') {
       if (setType) this.type = /^\s*</.test(val) ? 'html' : 'text'
       this.length = Buffer.byteLength(val)
+      cleanupPreviousStream()
       return
     }
 
@@ -176,6 +179,7 @@ module.exports = {
     if (Buffer.isBuffer(val)) {
       if (setType) this.type = 'bin'
       this.length = val.length
+      cleanupPreviousStream()
       return
     }
 
@@ -184,12 +188,7 @@ module.exports = {
       onFinish(this.res, destroy.bind(null, val))
       if (original !== val) {
         if (original != null) this.remove('Content-Length')
-
-        const shouldDestroyOriginal = original && isStream(original)
-        if (shouldDestroyOriginal) {
-          original.once('error', () => {})
-          destroy(original)
-        }
+        cleanupPreviousStream()
       }
 
       if (setType) this.type = 'bin'
@@ -199,6 +198,7 @@ module.exports = {
     // ReadableStream
     if (val instanceof ReadableStream) {
       if (setType) this.type = 'bin'
+      cleanupPreviousStream()
       return
     }
 
@@ -206,6 +206,7 @@ module.exports = {
     if (val instanceof Blob) {
       if (setType) this.type = 'bin'
       this.length = val.size
+      cleanupPreviousStream()
       return
     }
 
@@ -217,13 +218,14 @@ module.exports = {
       for (const key of headers.keys()) {
         this.set(key, headers.get(key))
       }
-
+      cleanupPreviousStream()
       return
     }
 
     // json
     this.remove('Content-Length')
     if (!this.type || !/\bjson\b/i.test(this.type)) this.type = 'json'
+    cleanupPreviousStream()
   },
 
   /**

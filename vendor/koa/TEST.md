@@ -1,3 +1,0 @@
-# COPY
-
-It works!
